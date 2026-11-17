@@ -523,7 +523,15 @@ def _from_process(cmd, source):
 
 # ---------------------------------------------------------------- S3 client (read-only, SigV4)
 
-S3_NS = "{http://s3.amazonaws.com/doc/2006-03-01/}"
+S3_NS = ""  # parse_xml drops namespaces, some S3-compatible servers don't send the AWS one
+
+
+def parse_xml(body):
+    root = ET.fromstring(body)
+    for el in root.iter():
+        if isinstance(el.tag, str) and "}" in el.tag:
+            el.tag = el.tag.split("}", 1)[1]
+    return root
 HEAD_FIELDS = {
     "x-amz-server-side-encryption": "ServerSideEncryption",
     "x-amz-server-side-encryption-customer-algorithm": "SSECustomerAlgorithm",
@@ -656,7 +664,7 @@ class S3Client:
     def _error_text(e, body):
         code, msg = "", ""
         try:
-            root = ET.fromstring(body)
+            root = parse_xml(body)
             code, msg = root.findtext("Code") or "", root.findtext("Message") or ""
         except ET.ParseError:
             pass
@@ -674,7 +682,7 @@ class S3Client:
             if token:
                 q["continuation-token"] = token
             _, _, body = self._request("GET", "/", q)
-            root = ET.fromstring(body)
+            root = parse_xml(body)
             for c in root.iter(S3_NS + "Contents"):
                 key = urllib.parse.unquote_plus(c.findtext(S3_NS + "Key"))
                 objs[key] = {"size": int(c.findtext(S3_NS + "Size")),
@@ -694,7 +702,7 @@ class S3Client:
             if token:
                 q["continuation-token"] = token
             _, _, body = self._request("GET", "/", q)
-            root = ET.fromstring(body)
+            root = parse_xml(body)
             for cp in root.iter(S3_NS + "CommonPrefixes"):
                 folders.append(urllib.parse.unquote_plus(cp.findtext(S3_NS + "Prefix") or ""))
             n_objects += sum(1 for c in root.iter(S3_NS + "Contents")
@@ -726,7 +734,7 @@ def list_buckets(creds, endpoint=None, timeout=60):
         raise S3Error(S3Client._error_text(e, e.read()))
     except (urllib.error.URLError, OSError) as e:
         raise S3Error("cannot reach S3: %s" % getattr(e, "reason", e))
-    root = ET.fromstring(body)
+    root = parse_xml(body)
     return sorted(b.findtext(S3_NS + "Name") or "" for b in root.iter(S3_NS + "Bucket"))
 
 
