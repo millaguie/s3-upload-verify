@@ -52,7 +52,7 @@ import zlib
 if sys.version_info < (3, 8):
     sys.exit("ERROR: this tool needs Python 3.8 or newer.")
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 MANIFEST_VERSION = 2
 MiB = 1024 * 1024
 # Part sizes that common S3 upload clients use by default.
